@@ -29,6 +29,9 @@ struct EmojiArtDocumentView: View {
         GeometryReader { geometry in
             ZStack {
                 Color.white // Background color.
+                    .onTapGesture {
+                        setOfChosenEmojis.removeAll()
+                    }
                 OptionalImage(uiImage: document.backgroundImage)
                     .scaleEffect(zoomScale) // Apply zoom scale.
                     .position(convertFromEmojiCoordinates((0,0), in: geometry))
@@ -41,7 +44,7 @@ struct EmojiArtDocumentView: View {
                     ForEach(document.emojis) { emoji in
                         Text(emoji.text)
                             .font(.system(size: fontSize(for: emoji)))
-                            .border(emojiIsChosen(emoji) ? .black : .clear)
+                            .shadow(color: emojiIsChosen(emoji) ? .blue : .clear, radius: 5)
                             .scaleEffect(zoomScale)
                             .position(position(for: emoji, in: geometry))
                             .gesture(chooseEmojiGesture(emoji).simultaneously(with: panEmojiGesture(emoji)))
