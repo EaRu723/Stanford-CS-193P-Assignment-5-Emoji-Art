@@ -9,63 +9,123 @@ import SwiftUI
 
 // SwiftUI view for choosing and managing emoji palettes.
 struct PaletteChooser: View {
-    @EnvironmentObject var store: PaletteStore // Access to the shared PaletteStore environment object.
+    
+    var emojiFontSize: CGFloat = 40
+    var emojiFont: Font { .system(size: emojiFontSize)}
+    
+    @EnvironmentObject var store: PaletteStore
+    
+    // saves palette information if app is killed
+    @SceneStorage("PaletteChooser.chosenPaletteIndex") private var chosenPaletteIndex = 0
     
     // The body of the PaletteChooser view.
     var body: some View {
         HStack {
-            chooser // A subview for choosing palettes.
-            view(for: store.palettes[store.cursorIndex]) // Displays the currently selected palette.
+            paletteControlButton // A subview for choosing palettes.
+            body(for: store.palette(at: chosenPaletteIndex))
         }
         .clipped() // Clips the view to its bounding frame.
     }
     
     // Subview for palette selection and context menu actions.
-    private var chooser: some View {
-        AnimatedActionButton(systemImage: "paintpalette") {
-            store.cursorIndex += 1 // Change the cursor index to cycle through palettes.
+    private var paletteControlButton: some View {
+        Button {
+            withAnimation {
+                chosenPaletteIndex = (chosenPaletteIndex + 1) % store.palettes.count
+            }
+        } label: {
+            Image(systemName: "paintpalette")
         }
-        .contextMenu { // Context menu for additional actions.
-            AnimatedActionButton("New", systemImage: "plus") {
-                store.insert(name: "Math", emojis: "+−×÷∝∞") // Action to insert a new palette.
+        .font(emojiFont)
+        .paletteControlButtonStyle()
+        .contextMenu { contextMenu }
+    }
+    
+    @ViewBuilder
+    var contextMenu: some View {
+        AnimatedActionButton(title: "Edit", systemImage: "pencil") {
+            paletteToEdit = store.palette(at: chosenPaletteIndex)
+        }
+        AnimatedActionButton(title: "New", systemImage: "plus") {
+            store.insertPalette(named: "New", emojis: "", at: chosenPaletteIndex)
+            paletteToEdit = store.palette(at: chosenPaletteIndex)
+        }
+        AnimatedActionButton(title: "Delete", systemImage: "minus.circle") {
+            chosenPaletteIndex = store.removePalette(at: chosenPaletteIndex)
+        }
+        
+        #if os(iOS)
+        AnimatedActionButton(title: "Manager", systemImage: "slider.vertical.3") {
+            managing = true
+        }
+        #endif
+        
+        gotoMenu
+    }
+    
+    var gotoMenu: some View {
+        Menu {
+            ForEach (store.palettes) { palette in
+                AnimatedActionButton(title: palette.name) {
+                    if let index = store.palettes.index(matching: palette) {
+                                            chosenPaletteIndex = index
+                    }
+                }
             }
-            AnimatedActionButton("Delete", systemImage: "minus.circle", role: .destructive) {
-                store.palettes.remove(at: store.cursorIndex) // Action to delete the current palette.
-            }
+        } label: {
+            Label("Go To", systemImage: "text.insert")
         }
     }
     
     // Function to create a view for a given palette.
-    private func view(for palette: Palette) -> some View {
-        HStack {
-            Text(palette.name) // Displays the name of the palette.
-            ScrollingEmojis(palette.emojis) // A scrolling view of the emojis in the palette.
-        }
-        .id(palette.id) // Assigns an ID to the view for identification.
-        .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .move(edge: .top))) // Transition effects for the view.
+    func body(for palette: Palette) -> some View {
+            HStack {
+                Text(palette.name)
+                ScrollingEmojis(emojis: palette.emojis)
+                    .font(emojiFont)
+            }
+            //adding id to make the view identifiable, if it changes, the whole HStack changes, which allows for transition to work on an entire stack and not just the emojis
+            .id(palette.id)
+            .transition(rollTransition)
+            //.sheet is for a new blank view over the view, .popover is the same but smaller and with arrow pointing at origin. The other option is using nil or object method instead of false/true
+            .popover(item: $paletteToEdit) { palette in
+                PaletteEditor(palette: $store.palettes[palette])
+                //on mac add padding
+                    .popoverPadding()
+                    .wrappedInNavigationViewToMakeDismissable { paletteToEdit = nil }
+            }
+            .sheet(isPresented: $managing) {
+                PaletteManager()
+            }
     }
+    
+    
+    @State private var managing = false
+    @State private var paletteToEdit: Palette?
+    
+    var rollTransition: AnyTransition {
+        AnyTransition.asymmetric(insertion: .offset(x: 0, y: emojiFontSize), removal: .offset(x: 0, y: -emojiFontSize))
+    }
+    
 }
 
-
 struct ScrollingEmojis: View {
-    let emojis: [String] // Array of emoji strings.
     
-    // Initializer converts a string of emojis into an array of unique emoji strings.
-    init(_ emojis: String) {
-        self.emojis = emojis.uniqued.map(String.init)
-    }
+    let emojis: String
     
     // The body of the ScrollingEmojis view.
     var body: some View {
+        
         ScrollView(.horizontal) { // A horizontal scroll view.
             HStack {
-                ForEach(emojis, id: \.self) { emoji in // Iterates over each emoji in the array.
-                    Text(emoji) // Displays the emoji.
-                        .draggable(emoji) // Makes the emoji draggable.
+                ForEach(emojis.removingDuplicateCharacters.map {String($0)}, id: \.self ) { emoji in
+                    Text(emoji)
+                        .onDrag { NSItemProvider(object: emoji as NSString)}
                 }
             }
         }
     }
+    
 }
 
 #Preview {

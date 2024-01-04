@@ -9,13 +9,17 @@ import SwiftUI
 
 @main
 struct Emoji_ArtApp: App {
-    @StateObject var defaultDocument = EmojiArtDocument()
-    @StateObject var paletteStore = PaletteStore(named: "Main")
-
+    @StateObject var paletteStore = PaletteStore(named: "Default")
+    
     var body: some Scene {
-        WindowGroup {
-            EmojiArtDocumentView(document: defaultDocument)
-                .environmentObject(paletteStore)
+            
+            DocumentGroup(newDocument: {EmojiArtDocument()} ) { config in /*config has viewModel we want to use and url to file*/
+                EmojiArtDocumentView(document: config.document)
+                    .environmentObject(paletteStore)
+                //fixes double back buttons
+                    .toolbarRole(.automatic)
+            }
+            
         }
+        
     }
-}
